@@ -2,6 +2,11 @@
 
 import { useState, useEffect, use } from "react";
 
+type Vital = {
+  value: "low" | "normal" | "high" | null;
+  individualBaseline: boolean;
+};
+
 type Case = {
   id: string;
   patient: {
@@ -9,7 +14,27 @@ type Case = {
     age: number;
     sex: string;
     chiefComplaint: string;
-    symptoms: string[];
+    vitals: {
+      spo2: Vital;
+      bp: Vital;
+      rr: Vital;
+      hr: Vital;
+      temperature: Vital;
+    };
+    symptoms: {
+      breathlessness: string | null;
+      dyspneaOnExertion: string | null;
+      cough: string | null;
+      chestPain: string | null;
+      sputum: string | null;
+      hemoptysis: string | null;
+    };
+    examFindings: {
+      breathSounds: string | null;
+      crackles: string | null;
+      bronchialBreathSounds: string | null;
+      trachealDeviation: string | null;
+    };
     smoker: boolean;
     immunocompromised: boolean;
   };
@@ -43,6 +68,77 @@ const FLAG_COLORS = {
   low: "text-green-600",
 };
 
+const VITAL_LABELS: Record<string, string> = {
+  spo2: "SpO₂",
+  bp: "Blood Pressure",
+  rr: "Respiratory Rate",
+  hr: "Heart Rate",
+  temperature: "Temperature",
+};
+
+const SYMPTOM_LABELS: Record<string, string> = {
+  breathlessness: "Breathlessness",
+  dyspneaOnExertion: "Dyspnea on Exertion",
+  cough: "Cough",
+  chestPain: "Chest Pain",
+  sputum: "Sputum",
+  hemoptysis: "Hemoptysis",
+};
+
+const EXAM_LABELS: Record<string, string> = {
+  breathSounds: "Breath Sounds (decreased)",
+  crackles: "Crackles",
+  bronchialBreathSounds: "Bronchial Breath Sounds",
+  trachealDeviation: "Tracheal Deviation",
+};
+
+function CollapsibleSection({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="bg-white rounded-lg shadow mb-6 overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full p-6 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+      >
+        <h2 className="text-lg font-semibold text-gray-800">
+          {title}
+          <span className="text-sm font-normal text-gray-400 ml-2">
+            ({count} recorded)
+          </span>
+        </h2>
+        <svg
+          className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
+      <div
+        className={`transition-all duration-300 ease-in-out ${
+          open ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        <div className="px-6 pb-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function CasePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [caseData, setCaseData] = useState<Case | null>(null);
@@ -56,31 +152,29 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
         if (!res.ok) throw new Error("Case not found");
         return res.json();
       })
-      .then((data) => setCaseData(data.caseData))
+      .then(async (data) => {
+        setCaseData(data.caseData);
+        setLoadingReport(true);
+        try {
+          const res = await fetch("/api/report", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              patient: data.caseData.patient,
+              predictions: data.caseData.predictions,
+              triage: data.caseData.triage,
+            }),
+          });
+          const reportData = await res.json();
+          setReport(reportData.report);
+        } catch {
+          setReport("Failed to generate report.");
+        } finally {
+          setLoadingReport(false);
+        }
+      })
       .catch(() => setError("Case not found"));
   }, [id]);
-
-  async function generateReport() {
-    if (!caseData) return;
-    setLoadingReport(true);
-    try {
-      const res = await fetch("/api/report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patient: caseData.patient,
-          predictions: caseData.predictions,
-          triage: caseData.triage,
-        }),
-      });
-      const data = await res.json();
-      setReport(data.report);
-    } catch {
-      alert("Failed to generate report");
-    } finally {
-      setLoadingReport(false);
-    }
-  }
 
   if (error) {
     return (
@@ -98,9 +192,40 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
     );
   }
 
+  const filledVitals = Object.entries(caseData.patient.vitals).filter(
+    ([, v]) => v.value !== null
+  );
+  const filledSymptoms = Object.entries(caseData.patient.symptoms).filter(
+    ([, v]) => v !== null
+  );
+  const filledExam = Object.entries(caseData.patient.examFindings).filter(
+    ([, v]) => v !== null
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-3xl mx-auto">
+        {/* Back Button */}
+        <a
+          href="/"
+          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4 transition-colors"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+          Back to all cases
+        </a>
+
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900">
@@ -118,18 +243,71 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
           <h2 className="text-lg font-semibold text-gray-800 mb-3">
             Patient Information
           </h2>
-          <div className="grid grid-cols-2 gap-2 text-sm text-gray-700">
-            <p>Age: {caseData.patient.age}</p>
-            <p>Sex: {caseData.patient.sex}</p>
-            <p>Chief Complaint: {caseData.patient.chiefComplaint}</p>
-            <p>Symptoms: {caseData.patient.symptoms.join(", ") || "None"}</p>
-            <p>Smoker: {caseData.patient.smoker ? "Yes" : "No"}</p>
+          <div className="text-sm text-gray-700 space-y-1">
             <p>
+              Age: {caseData.patient.age} • Sex: {caseData.patient.sex}
+            </p>
+            {caseData.patient.chiefComplaint && (
+              <p>Chief Complaint: {caseData.patient.chiefComplaint}</p>
+            )}
+            <p>
+              Smoker: {caseData.patient.smoker ? "Yes" : "No"} •
               Immunocompromised:{" "}
               {caseData.patient.immunocompromised ? "Yes" : "No"}
             </p>
           </div>
         </div>
+
+        {/* Collapsible Clinical Details */}
+        {filledVitals.length > 0 && (
+          <CollapsibleSection title="Vitals" count={filledVitals.length}>
+            <div className="space-y-2 text-sm text-gray-700">
+              {filledVitals.map(([key, v]) => (
+                <div key={key} className="flex justify-between">
+                  <span>{VITAL_LABELS[key]}</span>
+                  <span className="font-medium">
+                    {(v as Vital).value?.toUpperCase()}
+                    {(v as Vital).individualBaseline && (
+                      <span className="text-xs text-gray-400 ml-1">
+                        (individual baseline)
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CollapsibleSection>
+        )}
+
+        {filledSymptoms.length > 0 && (
+          <CollapsibleSection title="Symptoms" count={filledSymptoms.length}>
+            <div className="space-y-2 text-sm text-gray-700">
+              {filledSymptoms.map(([key, v]) => (
+                <div key={key} className="flex justify-between">
+                  <span>{SYMPTOM_LABELS[key]}</span>
+                  <span className="font-medium">
+                    {(v as string).toUpperCase()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CollapsibleSection>
+        )}
+
+        {filledExam.length > 0 && (
+          <CollapsibleSection title="Exam Findings" count={filledExam.length}>
+            <div className="space-y-2 text-sm text-gray-700">
+              {filledExam.map(([key, v]) => (
+                <div key={key} className="flex justify-between">
+                  <span>{EXAM_LABELS[key]}</span>
+                  <span className="font-medium">
+                    {(v as string).toUpperCase()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CollapsibleSection>
+        )}
 
         {/* Triage Reason */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
@@ -174,8 +352,38 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
               </div>
             </div>
           ))}
+          <div
+            className={`mt-6 p-3 rounded-lg ${
+              caseData.triage.level === "URGENT"
+                ? "bg-red-50 border border-red-200"
+                : caseData.triage.level === "REVIEW"
+                  ? "bg-yellow-50 border border-yellow-200"
+                  : "bg-green-50 border border-green-200"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-gray-700">
+                Overall Assessment
+              </span>
+              <span
+                className={`font-bold ${
+                  caseData.triage.level === "URGENT"
+                    ? "text-red-600"
+                    : caseData.triage.level === "REVIEW"
+                      ? "text-yellow-600"
+                      : "text-green-600"
+                }`}
+              >
+                {caseData.triage.level}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {caseData.triage.reason}
+            </p>
+          </div>
           <p className="text-xs text-gray-400 mt-4">
-            Model version: MVP-mock • {new Date(caseData.createdAt).toLocaleString()}
+            Model version: MVP-mock •{" "}
+            {new Date(caseData.createdAt).toLocaleString()}
           </p>
           <p className="text-xs text-gray-400">
             Explainability (heatmaps) not available in MVP
@@ -191,15 +399,9 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
             <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono bg-gray-50 p-4 rounded">
               {report}
             </pre>
-          ) : (
-            <button
-              onClick={generateReport}
-              disabled={loadingReport}
-              className="bg-purple-600 text-white px-6 py-2 rounded font-semibold hover:bg-purple-700 disabled:bg-gray-400"
-            >
-              {loadingReport ? "Generating Report..." : "Generate Report"}
-            </button>
-          )}
+          ) : loadingReport ? (
+            <p className="text-sm text-gray-500">Generating report...</p>
+          ) : null}
         </div>
 
         {/* Export */}

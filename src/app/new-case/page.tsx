@@ -3,14 +3,66 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const SYMPTOM_OPTIONS = [
-  "Cough",
-  "Fever",
-  "Chest Pain",
-  "Shortness of Breath",
-  "Fatigue",
-  "Wheezing",
+const VITAL_FIELDS = [
+  { key: "spo2", label: "Oxygen Saturation (SpO₂)" },
+  { key: "bp", label: "Blood Pressure (BP)" },
+  { key: "rr", label: "Respiratory Rate (RR)" },
+  { key: "hr", label: "Pulse / Heart Rate (HR)" },
+  { key: "temperature", label: "Temperature" },
 ];
+
+const SYMPTOM_FIELDS = [
+  { key: "breathlessness", label: "Breathlessness / Dyspnea" },
+  { key: "dyspneaOnExertion", label: "Dyspnea on Exertion" },
+  { key: "cough", label: "Cough Severity" },
+  { key: "chestPain", label: "Chest Pain Severity" },
+  { key: "sputum", label: "Sputum / Productive Cough" },
+  { key: "hemoptysis", label: "Hemoptysis (Coughing Blood)" },
+];
+
+const EXAM_FIELDS = [
+  { key: "breathSounds", label: "Breath Sounds (decreased)" },
+  { key: "crackles", label: "Crackles / Crepitations" },
+  { key: "bronchialBreathSounds", label: "Bronchial Breath Sounds" },
+  { key: "trachealDeviation", label: "Tracheal Deviation to Opposite Side" },
+];
+
+type VitalState = { value: string | null; individualBaseline: boolean };
+
+function TriStateSelector({
+  options,
+  value,
+  onChange,
+}: {
+  options: string[];
+  value: string | null;
+  onChange: (val: string | null) => void;
+}) {
+  return (
+    <div className="flex gap-1">
+      {options.map((opt) => (
+        <button
+          key={opt}
+          type="button"
+          onClick={() => onChange(value === opt ? null : opt)}
+          className={`px-3 py-1 rounded text-sm border transition-colors ${
+            value === opt
+              ? opt === "low" || opt === "absent"
+                ? "bg-blue-100 border-blue-500 text-blue-700"
+                : opt === "normal"
+                  ? "bg-green-100 border-green-500 text-green-700"
+                  : opt === "high" || opt === "present"
+                    ? "bg-red-100 border-red-500 text-red-700"
+                    : "bg-gray-200 border-gray-400 text-gray-700"
+              : "bg-gray-50 border-gray-300 text-gray-500 hover:bg-gray-100"
+          }`}
+        >
+          {opt.charAt(0).toUpperCase() + opt.slice(1)}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function NewCasePage() {
   const router = useRouter();
@@ -19,28 +71,39 @@ export default function NewCasePage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [patientCardFile, setPatientCardFile] = useState<File | null>(null);
 
-  const [form, setForm] = useState({
+  const [basic, setBasic] = useState({
     name: "",
     age: "",
     sex: "",
     chiefComplaint: "",
-    symptoms: [] as string[],
-    smoker: false,
-    immunocompromised: false,
   });
 
-  function updateField(field: string, value: string | boolean | string[]) {
-    setForm((prev) => ({ ...prev, [field]: value }));
-  }
+  const [vitals, setVitals] = useState<Record<string, VitalState>>({
+    spo2: { value: null, individualBaseline: false },
+    bp: { value: null, individualBaseline: false },
+    rr: { value: null, individualBaseline: false },
+    hr: { value: null, individualBaseline: false },
+    temperature: { value: null, individualBaseline: false },
+  });
 
-  function toggleSymptom(symptom: string) {
-    setForm((prev) => ({
-      ...prev,
-      symptoms: prev.symptoms.includes(symptom)
-        ? prev.symptoms.filter((s) => s !== symptom)
-        : [...prev.symptoms, symptom],
-    }));
-  }
+  const [symptoms, setSymptoms] = useState<Record<string, string | null>>({
+    breathlessness: null,
+    dyspneaOnExertion: null,
+    cough: null,
+    chestPain: null,
+    sputum: null,
+    hemoptysis: null,
+  });
+
+  const [examFindings, setExamFindings] = useState<Record<string, string | null>>({
+    breathSounds: null,
+    crackles: null,
+    bronchialBreathSounds: null,
+    trachealDeviation: null,
+  });
+
+  const [smoker, setSmoker] = useState(false);
+  const [immunocompromised, setImmunocompromised] = useState(false);
 
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -56,26 +119,26 @@ export default function NewCasePage() {
     if (!file) return;
     setPatientCardFile(file);
 
-    // For MVP: handle JSON patient cards
     if (file.name.endsWith(".json")) {
       const text = await file.text();
       try {
         const data = JSON.parse(text);
-        setForm((prev) => ({
-          ...prev,
-          name: data.name || prev.name,
-          age: data.age?.toString() || prev.age,
-          sex: data.sex || prev.sex,
-          chiefComplaint: data.chiefComplaint || prev.chiefComplaint,
-          symptoms: data.symptoms || prev.symptoms,
-          smoker: data.smoker ?? prev.smoker,
-          immunocompromised: data.immunocompromised ?? prev.immunocompromised,
-        }));
+        if (data.name) setBasic((prev) => ({ ...prev, name: data.name }));
+        if (data.age) setBasic((prev) => ({ ...prev, age: data.age.toString() }));
+        if (data.sex) setBasic((prev) => ({ ...prev, sex: data.sex }));
+        if (data.chiefComplaint)
+          setBasic((prev) => ({ ...prev, chiefComplaint: data.chiefComplaint }));
+        if (data.vitals) setVitals((prev) => ({ ...prev, ...data.vitals }));
+        if (data.symptoms) setSymptoms((prev) => ({ ...prev, ...data.symptoms }));
+        if (data.examFindings)
+          setExamFindings((prev) => ({ ...prev, ...data.examFindings }));
+        if (data.smoker !== undefined) setSmoker(data.smoker);
+        if (data.immunocompromised !== undefined)
+          setImmunocompromised(data.immunocompromised);
       } catch {
         alert("Invalid JSON patient card");
       }
     }
-    // TODO: Add Gemini vision OCR for image-based patient cards later
   }
 
   async function handleSubmit() {
@@ -83,7 +146,7 @@ export default function NewCasePage() {
       alert("Please upload a chest X-ray image");
       return;
     }
-    if (!form.name || !form.age || !form.sex) {
+    if (!basic.name || !basic.age || !basic.sex) {
       alert("Please fill in at least name, age, and sex");
       return;
     }
@@ -91,21 +154,26 @@ export default function NewCasePage() {
     setLoading(true);
 
     try {
-      // Step 1: Send X-ray to model
       const inferRes = await fetch("/api/infer", {
         method: "POST",
         body: imageFile,
       });
       const { predictions } = await inferRes.json();
 
-      // Step 2: Create case
       const caseRes = await fetch("/api/cases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           patient: {
-            ...form,
-            age: parseInt(form.age),
+            name: basic.name,
+            age: parseInt(basic.age),
+            sex: basic.sex,
+            chiefComplaint: basic.chiefComplaint,
+            vitals,
+            symptoms,
+            examFindings,
+            smoker,
+            immunocompromised,
           },
           predictions,
           imageFilename: imageFile.name,
@@ -113,7 +181,6 @@ export default function NewCasePage() {
       });
       const { id } = await caseRes.json();
 
-      // Step 3: Navigate to case page
       router.push(`/case/${id}`);
     } catch (error) {
       console.error("Error:", error);
@@ -151,12 +218,11 @@ export default function NewCasePage() {
           )}
         </div>
 
-        {/* Patient Info Form */}
+        {/* Basic Info */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
-            Patient Information
+            Basic Information
           </h2>
-
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -164,8 +230,10 @@ export default function NewCasePage() {
               </label>
               <input
                 type="text"
-                value={form.name}
-                onChange={(e) => updateField("name", e.target.value)}
+                value={basic.name}
+                onChange={(e) =>
+                  setBasic((prev) => ({ ...prev, name: e.target.value }))
+                }
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                 placeholder="Patient name"
               />
@@ -176,21 +244,24 @@ export default function NewCasePage() {
               </label>
               <input
                 type="number"
-                value={form.age}
-                onChange={(e) => updateField("age", e.target.value)}
+                value={basic.age}
+                onChange={(e) =>
+                  setBasic((prev) => ({ ...prev, age: e.target.value }))
+                }
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
                 placeholder="Age"
               />
             </div>
           </div>
-
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Sex
             </label>
             <select
-              value={form.sex}
-              onChange={(e) => updateField("sex", e.target.value)}
+              value={basic.sex}
+              onChange={(e) =>
+                setBasic((prev) => ({ ...prev, sex: e.target.value }))
+              }
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
             >
               <option value="">Select</option>
@@ -199,58 +270,127 @@ export default function NewCasePage() {
               <option value="Other">Other</option>
             </select>
           </div>
-
-          <div className="mb-4">
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Chief Complaint
             </label>
             <textarea
-              value={form.chiefComplaint}
-              onChange={(e) => updateField("chiefComplaint", e.target.value)}
+              value={basic.chiefComplaint}
+              onChange={(e) =>
+                setBasic((prev) => ({ ...prev, chiefComplaint: e.target.value }))
+              }
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
               rows={2}
               placeholder="Primary reason for visit"
             />
           </div>
+        </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Symptoms
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {SYMPTOM_OPTIONS.map((symptom) => (
-                <button
-                  key={symptom}
-                  type="button"
-                  onClick={() => toggleSymptom(symptom)}
-                  className={`px-3 py-1 rounded-full text-sm border ${
-                    form.symptoms.includes(symptom)
-                      ? "bg-blue-100 border-blue-500 text-blue-700"
-                      : "bg-gray-100 border-gray-300 text-gray-600"
-                  }`}
-                >
-                  {symptom}
-                </button>
-              ))}
-            </div>
+        {/* Vitals */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Vitals</h2>
+          <div className="space-y-4">
+            {VITAL_FIELDS.map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-700">{label}</p>
+                </div>
+                <TriStateSelector
+                  options={["low", "normal", "high"]}
+                  value={vitals[key].value}
+                  onChange={(val) =>
+                    setVitals((prev) => ({
+                      ...prev,
+                      [key]: { ...prev[key], value: val },
+                    }))
+                  }
+                />
+                <label className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={vitals[key].individualBaseline}
+                    onChange={(e) =>
+                      setVitals((prev) => ({
+                        ...prev,
+                        [key]: {
+                          ...prev[key],
+                          individualBaseline: e.target.checked,
+                        },
+                      }))
+                    }
+                  />
+                  Individual baseline
+                </label>
+              </div>
+            ))}
           </div>
+        </div>
 
+        {/* Symptoms */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Symptoms (Severity)
+          </h2>
+          <div className="space-y-4">
+            {SYMPTOM_FIELDS.map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-700">{label}</p>
+                </div>
+                <TriStateSelector
+                  options={["low", "normal", "high"]}
+                  value={symptoms[key]}
+                  onChange={(val) =>
+                    setSymptoms((prev) => ({ ...prev, [key]: val }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Exam Findings */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Exam Findings
+          </h2>
+          <div className="space-y-4">
+            {EXAM_FIELDS.map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-700">{label}</p>
+                </div>
+                <TriStateSelector
+                  options={["absent", "normal", "present"]}
+                  value={examFindings[key]}
+                  onChange={(val) =>
+                    setExamFindings((prev) => ({ ...prev, [key]: val }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Risk Factors */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Risk Factors
+          </h2>
           <div className="flex gap-6">
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input
                 type="checkbox"
-                checked={form.smoker}
-                onChange={(e) => updateField("smoker", e.target.checked)}
+                checked={smoker}
+                onChange={(e) => setSmoker(e.target.checked)}
               />
               Smoker
             </label>
             <label className="flex items-center gap-2 text-sm text-gray-700">
               <input
                 type="checkbox"
-                checked={form.immunocompromised}
-                onChange={(e) =>
-                  updateField("immunocompromised", e.target.checked)
-                }
+                checked={immunocompromised}
+                onChange={(e) => setImmunocompromised(e.target.checked)}
               />
               Immunocompromised
             </label>
