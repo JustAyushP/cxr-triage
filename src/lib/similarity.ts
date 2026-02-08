@@ -117,10 +117,10 @@ export function computeSimilarity(a: Case, b: Case): number {
 }
 
 // ── Find the most similar resolved case (if above threshold) ────────────────
-export function findMostSimilarCase(
+export async function findMostSimilarCase(
   targetCase: Case
-): { caseId: string; score: number } | null {
-  const resolved = getResolvedCases();
+): Promise<{ caseId: string; score: number } | null> {
+  const resolved = await getResolvedCases();
   let bestMatch: { caseId: string; score: number } | null = null;
 
   for (const candidate of resolved) {

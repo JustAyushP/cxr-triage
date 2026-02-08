@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   const effectiveDoctorId = tokenDoctorId;
 
   const triage = computeTriage(predictions);
-  const id = nextCaseId();
+  const id = await nextCaseId();
 
   const caseObj: Case = {
     id,
@@ -36,9 +36,9 @@ export async function POST(req: Request) {
   };
 
   // Find the most similar resolved case before saving
-  const match = findMostSimilarCase(caseObj);
+  const match = await findMostSimilarCase(caseObj);
   if (match) {
-    caseObj.similarCaseId = match.caseId as string | null;
+    caseObj.similarCaseId = match.caseId;
     caseObj.similarityScore = match.score;
   }
 

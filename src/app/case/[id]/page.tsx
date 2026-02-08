@@ -182,6 +182,7 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
   const [showConfirm, setShowConfirm] = useState(false);
   const [similarCase, setSimilarCase] = useState<Case | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
   const router = useRouter();
   useEffect(() => {
     (async () => {
@@ -193,6 +194,7 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
           setError("Unauthorized — please sign in to view this case");
           return;
         }
+        setAuthToken(token);
 
         const res = await fetch(`/api/cases/${id}`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -237,10 +239,12 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
     })();
 
     // Fetch similar case if one exists
-    if (caseData?.similarCaseId) {
+    if (caseData?.similarCaseId && authToken) {
       (async () => {
         try {
-          const simRes = await fetch(`/api/cases/${caseData.similarCaseId}`);
+          const simRes = await fetch(`/api/cases/${caseData.similarCaseId}`, {
+            headers: { Authorization: `Bearer ${authToken}` },
+          });
           if (simRes.ok) {
             const simData = await simRes.json();
             setSimilarCase(simData.caseData);
@@ -250,7 +254,7 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
         }
       })();
     }
-  }, [caseData, id]);
+  }, [caseData, id, authToken]);
 
   function openConfirm(resolution: string) {
     setSelectedResolution(resolution);
@@ -264,7 +268,10 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
     try {
       const res = await fetch(`/api/cases/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
         body: JSON.stringify({
           resolution: selectedResolution,
           notes: resolutionNotes.trim() || null,
