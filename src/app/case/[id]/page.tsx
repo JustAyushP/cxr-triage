@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
+import { supabaseClient } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
 type Vital = {
   value: "low" | "normal" | "high" | null;
@@ -145,36 +147,59 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
   const [report, setReport] = useState<string | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  useEffect(() => {
+    (async () => {
+      // ensure session and request with token to API
+      try {
+        const { data: { session } = {} } = await (supabaseClient as any).auth.getSession();
+        const token = session?.access_token;
+        if (!token) {
+          setError("Unauthorized — please sign in to view this case");
+          return;
+        }
+
+        const res = await fetch(`/api/cases/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          if (res.status === 403) setError("Unauthorized — you don't have access to this case");
+          else setError("Case not found");
+          return;
+        }
+        const data = await res.json();
+        setCaseData(data.caseData);
+      } catch (e) {
+        setError("Unauthorized — please sign in to view this case");
+        return;
+      }
+    })();
+  }, [id]);
 
   useEffect(() => {
-    fetch(`/api/cases/${id}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Case not found");
-        return res.json();
-      })
-      .then(async (data) => {
-        setCaseData(data.caseData);
-        setLoadingReport(true);
-        try {
-          const res = await fetch("/api/report", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              patient: data.caseData.patient,
-              predictions: data.caseData.predictions,
-              triage: data.caseData.triage,
-            }),
-          });
-          const reportData = await res.json();
-          setReport(reportData.report);
-        } catch {
-          setReport("Failed to generate report.");
-        } finally {
-          setLoadingReport(false);
-        }
-      })
-      .catch(() => setError("Case not found"));
-  }, [id]);
+    // generate report once caseData available
+    (async () => {
+      if (!caseData) return;
+      setLoadingReport(true);
+      try {
+        const res = await fetch("/api/report", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            patient: caseData.patient,
+            predictions: caseData.predictions,
+            triage: caseData.triage,
+          }),
+        });
+        const reportData = await res.json();
+        setReport(reportData.report);
+      } catch {
+        setReport("Failed to generate report.");
+      } finally {
+        setLoadingReport(false);
+      }
+    })();
+  }, [caseData]);
 
   if (error) {
     return (

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabaseClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 
 const VITAL_FIELDS = [
@@ -66,6 +67,19 @@ function TriStateSelector({
 
 export default function NewCasePage() {
   const router = useRouter();
+  // require session
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { session } = {} } = await (supabaseClient as any).auth.getSession();
+        if (!session) {
+          router.push("/login");
+        }
+      } catch (e) {
+        router.push("/login");
+      }
+    })();
+  }, [router]);
   const [loading, setLoading] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -227,9 +241,18 @@ export default function NewCasePage() {
       });
       const { predictions } = await inferRes.json();
 
+      // get current session to attach access token if signed in
+      const {
+        data: { session },
+      } = await (supabaseClient as any).auth.getSession();
+      const token = session?.access_token;
+
       const caseRes = await fetch("/api/cases", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: Object.assign(
+          { "Content-Type": "application/json" },
+          token ? { Authorization: `Bearer ${token}` } : {}
+        ),
         body: JSON.stringify({
           patient: {
             name: basic.name,

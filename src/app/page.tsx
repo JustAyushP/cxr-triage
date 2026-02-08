@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import supabaseClient from "@/lib/supabaseClient";
 
 type CaseSummary = {
   id: string;
@@ -26,9 +27,19 @@ export default function HomePage() {
   const [cases, setCases] = useState<CaseSummary[]>([]);
 
   useEffect(() => {
-    fetch("/api/cases")
-      .then((res) => res.json())
-      .then((data) => setCases(data.cases));
+    (async () => {
+      try {
+        const { data: { session } = {} } = await (supabaseClient as any).auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch("/api/cases", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        setCases(Array.isArray(data?.cases) ? data.cases : []);
+      } catch (err) {
+        setCases([]);
+      }
+    })();
   }, []);
 
   return (

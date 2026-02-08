@@ -53,18 +53,49 @@ export type Case = {
   createdAt: string;
 };
 
-const cases = new Map<string, Case>();
+import { supabase } from "./supabase";
 
-export function saveCase(c: Case) {
-  cases.set(c.id, c);
+const inMemory = new Map<string, Case>();
+
+export async function saveCase(c: Case, doctorId?: string | null) {
+  // If Supabase not configured, save to in-memory map for dev
+  if (!process.env.SUPABASE_URL) {
+    inMemory.set(c.id, c);
+    return;
+  }
+
+  await supabase.from("cases").upsert({
+    id: c.id,
+    data: c,
+    image_filename: c.imageFilename,
+    created_at: c.createdAt,
+    doctor_id: doctorId || null,
+  });
 }
 
-export function getCase(id: string): Case | undefined {
-  return cases.get(id);
+export async function getCase(id: string): Promise<Case | undefined> {
+  if (!process.env.SUPABASE_URL) {
+    return inMemory.get(id);
+  }
+
+  const { data, error } = await supabase.from("cases").select("data").eq("id", id).limit(1).single();
+  if (error || !data) return undefined;
+  return data.data as Case;
 }
 
-export function getAllCases(): Case[] {
-  return Array.from(cases.values()).sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+export async function getAllCases(doctorId?: string | null): Promise<Case[]> {
+  if (!process.env.SUPABASE_URL) {
+    return Array.from(inMemory.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
+  let query = supabase.from("cases").select("data, doctor_id").order("created_at", { ascending: false });
+  if (doctorId) {
+    query = query.eq("doctor_id", doctorId);
+  }
+
+  const { data, error } = await query;
+  if (error || !data) return [];
+  return data.map((r: any) => r.data as Case);
 }

@@ -34,3 +34,56 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Supabase integration (server)
+
+This project can optionally use Supabase as a secure backend. To enable it, set these environment variables in your deployment or local `.env`:
+
+- `SUPABASE_URL` — your Supabase project URL
+- `SUPABASE_SERVICE_ROLE_KEY` — server-side service role key (keep secret)
+
+Run the provided SQL migration in `supabase/migrations/001_init.sql` to create `doctors` and `cases` tables.
+
+When Supabase is not configured the app will fall back to an in-memory store for local development.
+
+### Client env vars
+
+For frontend auth to work set these env vars in addition to the server ones:
+
+- `NEXT_PUBLIC_SUPABASE_URL` — your Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — your Supabase anon/public key
+
+### Optional: restrict allowed sign-in emails
+
+If you want to limit sign-ins to an institutional email domain (recommended for hospital staff), set:
+
+- `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN` — e.g. `hospital.org`
+
+When set, the login UI will only allow emails ending with `@hospital.org`.
+
+### Quick setup & testing
+
+1. Install deps:
+
+```bash
+npm install
+```
+
+2. Run the migration against your Supabase database (using `psql` or `supabase` CLI):
+
+```bash
+# example using psql
+psql $SUPABASE_DB_URL -f supabase/migrations/001_init.sql
+```
+
+3. Start dev server:
+
+```bash
+npm run dev
+```
+
+4. Open http://localhost:3000/login and sign in with a doctor email and password. After signing in, create a new case at `/new-case`.
+
+Notes:
+- Keep your service role key secret; use it only on server-side.
+ - If you don't configure Supabase, the app will continue using an in-memory store (no persistence).
