@@ -10,15 +10,18 @@ if (supabaseUrl && supabaseAnonKey) {
 } else {
   // Provide a minimal fallback client to avoid crashing in development when env vars
   // are not set. This makes failures explicit and allows the app to run.
+  const notConfiguredError = new Error("Supabase client not configured (NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY missing)");
   _client = {
     auth: {
-      getUser: async () => ({ data: { user: null }, error: new Error("Supabase client not configured (NEXT_PUBLIC_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_ANON_KEY missing)") }),
-      signOut: async () => ({ error: new Error("Supabase client not configured") }),
-      signInWithOtp: async () => ({ error: new Error("Supabase client not configured") }),
+      getUser: async () => ({ data: { user: null }, error: notConfiguredError }),
+      getSession: async () => ({ data: { session: null }, error: notConfiguredError }),
+      signOut: async () => ({ error: notConfiguredError }),
+      signInWithOtp: async () => ({ error: notConfiguredError }),
+      signInWithPassword: async () => ({ data: { user: null }, error: notConfiguredError }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
     },
-    // Minimal from() stub returning chainable methods used by the app's client-side code.
     from: () => ({
-      select: async () => ({ data: null, error: new Error("Supabase client not configured") }),
+      select: async () => ({ data: null, error: notConfiguredError }),
     }),
   };
 }

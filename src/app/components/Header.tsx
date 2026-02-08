@@ -59,20 +59,22 @@ export default function Header() {
       <div className="flex items-center gap-3">
         {email ? (
           <>
-            <span className="text-sm text-gray-700 hidden sm:inline">{email.split("@")[0]}</span>
+            <span className="text-sm text-gray-600 hidden sm:inline">
+              {email.split("@")[0]}
+            </span>
             <button
               onClick={handleSignOut}
-              className="bg-gray-100 border border-gray-200 px-3 py-1 rounded text-sm hover:bg-gray-50"
+              className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
             >
-              Sign out
+              Sign Out
             </button>
           </>
         ) : (
           <Link
             href="/login"
-            className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+            className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
           >
-            Login
+            Sign In
           </Link>
         )}
       </div>
