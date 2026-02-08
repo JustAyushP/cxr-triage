@@ -46,11 +46,17 @@ def load_model() -> nn.Module:
         nn.Linear(512, NUM_CLASSES),
     )
 
-    checkpoint = torch.load(MODEL_PATH, map_location=DEVICE)
-    model.load_state_dict(checkpoint["model_state_dict"])
+    checkpoint = torch.load(MODEL_PATH, map_location=DEVICE, weights_only=False)
+    if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+        model.load_state_dict(checkpoint["model_state_dict"])
+        epoch = checkpoint.get("epoch", "?")
+        val_acc = checkpoint.get("val_acc", "?")
+        print(f"✓ Model loaded (epoch {epoch}, val_acc {val_acc})")
+    else:
+        raise ValueError("Checkpoint missing 'model_state_dict' key")
+    
     model.to(DEVICE)
     model.eval()
-    print(f"Model loaded (epoch {checkpoint.get('epoch')}, val_acc {checkpoint.get('val_acc')})")
     return model
 
 model = load_model()

@@ -263,10 +263,10 @@ export default function NewCasePage() {
 
       const caseRes = await fetch("/api/cases", {
         method: "POST",
-        headers: Object.assign(
-          { "Content-Type": "application/json" },
-          token ? { Authorization: `Bearer ${token}` } : {}
-        ),
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           patient: {
             name: basic.name,
